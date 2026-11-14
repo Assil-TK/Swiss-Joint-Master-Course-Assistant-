@@ -12,9 +12,31 @@ st.set_page_config(page_title="Fuzzy Course Assistant", page_icon=str(ICON), lay
 st.markdown(
     """
     <style>
+      /* Large / wide screens (desktop monitors, ~1700px and up) */
       html { font-size: 21px; }
       .block-container {padding-top: 2.2rem; padding-left: 3rem; padding-right: 3rem; max-width: 1700px;}
       section[data-testid="stSidebar"] {width: 440px !important;}
+
+      /* MacBook Air / Pro and 14-15" laptops (~1300-1699px) */
+      @media (max-width: 1699px) {
+        html { font-size: 18px; }
+        section[data-testid="stSidebar"] {width: 360px !important;}
+        .block-container {padding-left: 2.2rem; padding-right: 2.2rem;}
+      }
+      /* Small laptops (~1000-1299px, e.g. 13" at 1280x800) */
+      @media (max-width: 1299px) {
+        html { font-size: 16px; }
+        section[data-testid="stSidebar"] {width: 300px !important;}
+        .block-container {padding-left: 1.5rem; padding-right: 1.5rem; padding-top: 1.5rem;}
+      }
+      /* Tablets and phones: let Streamlit handle the sidebar as a pull-out menu */
+      @media (max-width: 999px) {
+        html { font-size: 16px; }
+        section[data-testid="stSidebar"] {width: auto !important;}
+        .block-container {padding-left: 1rem; padding-right: 1rem; padding-top: 3.5rem;}
+        h1 {font-size: 1.9rem !important;}
+        .block-container img {max-width: 56px;}
+      }
       .subtitle {color: #6b6b6b; margin-top: -0.6rem; font-size: 1.05rem;}
       div[data-testid="stMetric"] {background: #F5F5F4; border-radius: 12px; padding: 12px 16px;}
       .tag {display:inline-block; background:#FFF4D6; color:#7A5800; border-radius:999px;
