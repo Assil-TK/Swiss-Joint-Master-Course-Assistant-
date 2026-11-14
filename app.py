@@ -26,10 +26,7 @@ st.markdown(
       .todo {background:#FFF1CC; color:#7A5800;}
       .open {background:#EDEDED; color:#555;}
       .small {color:#6b6b6b; font-size:0.82rem; margin-bottom:0.2rem;}
-      .missing {color:#9A3412; font-size:0.9rem;}
-      .marks {display:flex; justify-content:space-between; color:#9a9a9a; font-size:0.72rem;
-              margin:-0.9rem 0.4rem 0.9rem 0.4rem;}
-    </style>
+      .missing {color:#9A3412; font-size:0.9rem;}    </style>
     """,
     unsafe_allow_html=True,
 )
@@ -59,13 +56,17 @@ def word_for(v):
     return MARKS[min(int(v / 2.0001), 4)]
 
 
-def degree_slider(label, key, default=5.0, disabled=False):
-    v = st.slider(label, 0.0, 10.0, default, 0.1, key=key, disabled=disabled, format="%.1f")
-    st.markdown(
-        '<div class="marks">' + "".join(f"<span>{m}</span>" for m in MARKS) + "</div>",
-        unsafe_allow_html=True,
+DEGREES = [round(i / 10, 1) for i in range(101)]  # 0.0, 0.1, ... 10.0
+
+
+def degree_slider(label, key, first=None):
+    """Smooth slider from 0 to 10. The handle shows a guide word plus the exact degree.
+    `first` adds a hard-constraint stop at the far left (e.g. "Can't go")."""
+    options = ([first] if first else []) + DEGREES
+    return st.select_slider(
+        label, options=options, value=5.0, key=key,
+        format_func=lambda v: v if isinstance(v, str) else f"{word_for(v)} · {v:.1f}",
     )
-    return v
 
 
 @st.cache_data
@@ -141,16 +142,14 @@ with left:
             tracks[code] = {"value": v, "term": word_for(v)}
 
     def place_row(label, key, cant_text):
-        c1, c2 = st.columns([4, 1], vertical_alignment="center")
-        excluded = c2.checkbox(cant_text, key=f"x_{key}")
-        with c1:
-            v = degree_slider(label, key=key, disabled=excluded)
+        v = degree_slider(label, key=key, first=cant_text)
+        excluded = isinstance(v, str)
         return {"value": None if excluded else v, "term": cant_text if excluded else word_for(v),
                 "excluded": excluded}
 
     with tab_place:
-        st.caption("How much do you like each city and day? **Can't go** / **Can't attend** removes "
-                   "courses completely. The sliders only change the ranking.")
+        st.caption("How much do you like each city and day? Slide fully left to **Can't go** / "
+                   "**Can't attend** to remove those courses completely. Everything else only changes the ranking.")
         st.markdown("##### Cities")
         cities = {c: place_row(c, f"city_{c}", "Can't go") for c in CITIES}
         st.markdown("##### Days")
