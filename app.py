@@ -12,9 +12,9 @@ st.set_page_config(page_title="Fuzzy Course Assistant", page_icon=str(ICON), lay
 st.markdown(
     """
     <style>
-      html { font-size: 18px; }
-      .block-container {padding-top: 2.2rem; max-width: 1300px;}
-      section[data-testid="stSidebar"] {width: 360px !important;}
+      html { font-size: 21px; }
+      .block-container {padding-top: 2.2rem; padding-left: 3rem; padding-right: 3rem; max-width: 1700px;}
+      section[data-testid="stSidebar"] {width: 440px !important;}
       .subtitle {color: #6b6b6b; margin-top: -0.6rem; font-size: 1.05rem;}
       div[data-testid="stMetric"] {background: #F5F5F4; border-radius: 12px; padding: 12px 16px;}
       .tag {display:inline-block; background:#FFF4D6; color:#7A5800; border-radius:999px;
