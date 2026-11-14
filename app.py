@@ -27,6 +27,8 @@ st.markdown(
       .open {background:#EDEDED; color:#555;}
       .small {color:#6b6b6b; font-size:0.82rem; margin-bottom:0.2rem;}
       .missing {color:#9A3412; font-size:0.9rem;}
+      .marks {display:flex; justify-content:space-between; color:#9a9a9a; font-size:0.72rem;
+              margin:-0.9rem 0.4rem 0.9rem 0.4rem;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -47,11 +49,23 @@ DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 ASSESSMENTS = ["Written exam", "Oral exam", "Mixed", "Continuous evaluation"]
 UNITS_NEEDED, ECTS_PER_UNIT, MIN_TRACKS, SPEC_UNITS = 12, 5, 3, 5
 
-# Linguistic terms -> numbers (0-10). These words are what the fuzzy engine reasons with.
-INTEREST = {"Not interested": 0, "Low": 2.5, "Medium": 5, "High": 7.5, "Very high": 10}
-PLACE = {"Can't go": None, "Rather not": 2, "Neutral": 5, "Prefer": 8, "Strongly prefer": 10}
-DAY = {"Can't attend": None, "Rather not": 2, "Neutral": 5, "Prefer": 8, "Strongly prefer": 10}
-LIKE = {"Dislike": 0, "Rather not": 2.5, "Neutral": 5, "Like": 7.5, "Love": 10}
+# Preferences are degrees on a continuous 0-10 scale. The words are only guide marks;
+# the fuzzy engine turns the number into membership degrees of Low / Medium / High.
+MARKS = ["Not at all", "Low", "Medium", "High", "Very much"]
+HIGH = 7.0  # from here a track counts as a favourite
+
+
+def word_for(v):
+    return MARKS[min(int(v / 2.0001), 4)]
+
+
+def degree_slider(label, key, default=5.0, disabled=False):
+    v = st.slider(label, 0.0, 10.0, default, 0.1, key=key, disabled=disabled, format="%.1f")
+    st.markdown(
+        '<div class="marks">' + "".join(f"<span>{m}</span>" for m in MARKS) + "</div>",
+        unsafe_allow_html=True,
+    )
+    return v
 
 
 @st.cache_data
@@ -104,12 +118,7 @@ with left:
             "Other completed units not in the list", 0, 12, 0,
             help="For example units from earlier years that are no longer offered.",
         )
-        c1, c2 = st.columns(2)
-        spec = c1.selectbox(
-            "Track you want to specialise in (optional)",
-            ["No specialisation"] + [f"{k} – {v}" for k, v in TRACKS.items()],
-        )
-        thesis = c2.selectbox("Master's thesis", ["Not started", "In progress", "Done"])
+        thesis = st.selectbox("Master's thesis", ["Not started", "In progress", "Done"])
 
     with tab_sem:
         semester = st.radio(
@@ -124,31 +133,35 @@ with left:
         n_seminars = c2.number_input("How many seminars? *", 0, 4, 1)
 
     with tab_tracks:
-        st.caption("How interested are you in each track? Rate at least one as High or Very high. *")
+        st.caption("How interested are you in each track? Move the slider anywhere: it's a degree, "
+                   "not a fixed answer. Put at least one track at High or above. *")
         tracks = {}
         for code, label in TRACKS.items():
-            word = st.select_slider(f"**{code}** – {label}", options=list(INTEREST), value="Medium", key=f"tr_{code}")
-            tracks[code] = {"term": word, "value": INTEREST[word]}
+            v = degree_slider(f"**{code}** – {label}", key=f"tr_{code}")
+            tracks[code] = {"value": v, "term": word_for(v)}
+
+    def place_row(label, key, cant_text):
+        c1, c2 = st.columns([4, 1], vertical_alignment="center")
+        excluded = c2.checkbox(cant_text, key=f"x_{key}")
+        with c1:
+            v = degree_slider(label, key=key, disabled=excluded)
+        return {"value": None if excluded else v, "term": cant_text if excluded else word_for(v),
+                "excluded": excluded}
 
     with tab_place:
-        st.caption("**Can't go** / **Can't attend** removes courses completely. The other answers only change the ranking.")
+        st.caption("How much do you like each city and day? **Can't go** / **Can't attend** removes "
+                   "courses completely. The sliders only change the ranking.")
         st.markdown("##### Cities")
-        cities = {}
-        for c in CITIES:
-            word = st.select_slider(c, options=list(PLACE), value="Neutral", key=f"city_{c}")
-            cities[c] = {"term": word, "value": PLACE[word], "excluded": PLACE[word] is None}
+        cities = {c: place_row(c, f"city_{c}", "Can't go") for c in CITIES}
         st.markdown("##### Days")
-        days = {}
-        for d in DAYS:
-            word = st.select_slider(d, options=list(DAY), value="Neutral", key=f"day_{d}")
-            days[d] = {"term": word, "value": DAY[word], "excluded": DAY[word] is None}
+        days = {d: place_row(d, f"day_{d}", "Can't attend") for d in DAYS}
 
     with tab_eval:
-        st.caption("How do you feel about each assessment method?")
+        st.caption("How much do you like each assessment method?")
         assessment = {}
         for a in ASSESSMENTS:
-            word = st.select_slider(a, options=list(LIKE), value="Neutral", key=f"as_{a}")
-            assessment[a] = {"term": word, "value": LIKE[word]}
+            v = degree_slider(a, key=f"as_{a}")
+            assessment[a] = {"value": v, "term": word_for(v)}
         profs = st.multiselect("Preferred professors (optional)", all_profs, placeholder="Choose professors")
 
 # ---------- Degree progress (computed from tab 1) ----------
@@ -160,7 +173,8 @@ for tl in done_rows["track_list"]:
     for t in tl:
         track_counts[t] += 1
 tracks_covered = [t for t, n in track_counts.items() if n > 0]
-spec_code = None if spec == "No specialisation" else spec.split(" – ")[0]
+# Specialisation is not asked: we show the track the student is closest to.
+spec_code = max(track_counts, key=track_counts.get) if tracks_covered else None
 
 
 def pill(ok, text_ok="Done", text_no="To do"):
@@ -191,7 +205,8 @@ with st.sidebar:
 
     if spec_code:
         n_spec = track_counts[spec_code]
-        row(f"Specialisation {spec_code}", f"{n_spec} of {SPEC_UNITS} units in {TRACKS[spec_code]}",
+        row("Specialisation (optional)",
+            f"Closest track: {spec_code} {TRACKS[spec_code]}, {n_spec} of {SPEC_UNITS} units",
             n_spec >= SPEC_UNITS)
         st.progress(min(n_spec / SPEC_UNITS, 1.0))
 
@@ -210,8 +225,8 @@ with st.sidebar:
     if len(tracks_covered) < MIN_TRACKS:
         todo.append(f"Take units from {MIN_TRACKS - len(tracks_covered)} more track(s).")
     if spec_code and track_counts[spec_code] < SPEC_UNITS:
-        todo.append(f"Take {SPEC_UNITS - track_counts[spec_code]} more units in {spec_code} "
-                    f"and write your thesis in this track.")
+        todo.append(f"Optional: to specialise in {spec_code}, take {SPEC_UNITS - track_counts[spec_code]} "
+                    f"more units there and write your thesis in this track.")
     if not thesis_ok:
         todo.append("Write your master's thesis.")
     if units_planned and left_units:
@@ -257,8 +272,8 @@ if not semester:
     missing.append("the semester you are planning (tab 2)")
 if units_planned == 0:
     missing.append("at least one lecture or seminar (tab 2)")
-if not any(v["value"] >= 7.5 for v in tracks.values()):
-    missing.append("at least one track rated High or Very high (tab 3)")
+if not any(v["value"] >= HIGH for v in tracks.values()):
+    missing.append("at least one track at High or above (tab 3)")
 if len(excluded_cities) == len(CITIES):
     missing.append("at least one city you can go to (tab 4)")
 
@@ -281,7 +296,7 @@ with right:
         st.metric("Courses you can take", "–")
         st.caption("Choose the semester you are planning in tab 2.")
 
-    top_tracks = [f"{k} {TRACKS[k]}" for k, v in tracks.items() if v["value"] >= 7.5]
+    top_tracks = [f"{k} {TRACKS[k]} ({v['value']:.1f})" for k, v in tracks.items() if v["value"] >= HIGH]
     if top_tracks:
         st.markdown("**Your favourite tracks**")
         st.markdown("".join(f'<span class="tag">{t}</span>' for t in top_tracks), unsafe_allow_html=True)
@@ -296,7 +311,7 @@ with right:
         st.markdown('<div class="missing"><b>Before we can recommend, please fill in:</b></div>',
                     unsafe_allow_html=True)
         st.markdown("\n".join(f"- {m}" for m in missing))
-    clicked = st.button("Recommend courses", type="primary", use_container_width=True,
+    clicked = st.button("Recommend courses", type="primary", width="stretch",
                         disabled=bool(missing))
     if clicked:
         st.session_state["show_results"] = True
@@ -311,12 +326,12 @@ if st.session_state.get("show_results") and not missing:
     table = pool[["code", "name", "type", "site", "tracks", "lecturers"]].copy()
     table["tracks"] = table["tracks"].str.replace(";", ", ")
     table["lecturers"] = table["lecturers"].str.replace(";", ", ")
-    st.dataframe(table.rename(columns=str.capitalize), hide_index=True, use_container_width=True)
+    st.dataframe(table.rename(columns=str.capitalize), hide_index=True, width="stretch")
 
     if len(removed):
         with st.expander(f"Removed by your constraints ({len(removed)})"):
             st.dataframe(removed[["code", "name", "site", "reason"]].rename(columns=str.capitalize),
-                         hide_index=True, use_container_width=True)
+                         hide_index=True, width="stretch")
 
     with st.expander("Data sent to the fuzzy engine"):
         st.json(user_input)
