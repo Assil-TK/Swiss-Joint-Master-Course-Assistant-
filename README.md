@@ -11,8 +11,8 @@ Course group project for *Fuzzy Sets and Systems I* (University of Fribourg, Aut
 ## Run locally
 
 ```bash
-pip install -r requirements.txt
-streamlit run app.py
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
 ```
 
 ## Files
